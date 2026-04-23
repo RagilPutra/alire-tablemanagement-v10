@@ -1364,7 +1364,7 @@ async function downloadDailyPDF(){
       // Table header
       doc.setFillColor(250,246,240);doc.rect(m,y,W-2*m,6,'F');
       doc.setFontSize(8);doc.setTextColor(120,90,60);doc.setFont('helvetica','bold');
-      doc.text('TIME',m+2,y+4.5);doc.text('TABLE',m+22,y+4.5);doc.text('GUEST',m+42,y+4.5);doc.text('PAX',m+95,y+4.5);doc.text('DUR',m+108,y+4.5);doc.text('NOTES',m+125,y+4.5);doc.text('FLAGS',m+175,y+4.5);
+      doc.text('TIME',m+2,y+4.5);doc.text('TABLE',m+22,y+4.5);doc.text('GUEST',m+42,y+4.5);doc.text('PAX',m+95,y+4.5);doc.text('DUR',m+108,y+4.5);doc.text('NOTES',m+125,y+4.5);doc.text('FLAGS',m+150,y+4.5);
       y+=7;
       // Rows
       doc.setFont('helvetica','normal');doc.setTextColor(30,30,30);
@@ -1386,16 +1386,15 @@ async function downloadDailyPDF(){
         doc.text(b.duration?durLbl(b.duration):'-',m+108,y+4.5);
         const noteStr=[b.notes||'',b.babyChairs>0?b.babyChairs+'x baby chair':''].filter(Boolean).join(', ');
         doc.text(noteStr.substring(0,28)+(noteStr.length>28?'...':''),m+125,y+4.5);
-        // Flags - positioned well within visible area
+        // Flags - aligned under FLAGS column
         const flags=[];
         if(b.preOrder&&b.preOrder.length)flags.push('PO');
         if(b.combos&&b.combos.length)flags.push('COMBO');
         if(flags.length){
-          let fx=W-m-48; // Move further left (210-18-48=144mm)
-          flags.reverse(); // Reverse to draw from right to left
+          let fx=m+150; // Align with FLAGS header
           flags.forEach(f=>{
             if(f==='PO'){doc.setFillColor(83,74,183);doc.setTextColor(255,255,255);}else{doc.setFillColor(201,100,0);doc.setTextColor(255,255,255);}
-            doc.roundedRect(fx,y+1,10,5,1,1,'F');doc.setFontSize(6);doc.text(f,fx+5,y+4.2,{align:'center'});fx-=12;
+            doc.roundedRect(fx,y+1,10,5,1,1,'F');doc.setFontSize(6);doc.text(f,fx+5,y+4.2,{align:'center'});fx+=12;
           });
           doc.setTextColor(30,30,30);doc.setFontSize(8);
         }
