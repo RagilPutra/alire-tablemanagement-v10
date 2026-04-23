@@ -341,6 +341,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx)}
 /* Package tabs and slots */
 .pkgbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#1a1a1a;color:#fff!important;border-radius:8px;padding:10px 14px;margin-top:10px;flex-wrap:wrap}
 .pkgbar *{color:#fff!important}
+.pkgbar-qty{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
+.pkgqb{background:#3a3a3a;border:none;color:#fff;width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:16px;font-weight:bold;display:flex;align-items:center;justify-content:center}
+.pkgqb:hover:not(:disabled){background:#4a4a4a}
+.pkgqb:disabled{opacity:.3;cursor:not-allowed}
+.pkgqn{min-width:20px;text-align:center;font-size:15px;font-weight:bold;color:#fbbf24!important}
 .pkgbar-status{font-size:12px;font-weight:600;flex:1;min-width:140px}
 .pkgbar-status.warn{color:#fbbf24!important}
 .pkgbar-status.ok{color:#6ee7b7!important}
@@ -759,7 +764,7 @@ const DUR_LBL={30:'30 min',60:'1 hr',90:'1.5 hr',120:'2 hr',150:'2.5 hr',180:'3 
 let bookings=[],activeTbl=null,rcombo=[],wicombo=[],editId=null,cfAction=null;
 let fdate='',ldate='',witime='',view='floor',sess='lunch';
 let wlist=[];
-let poItems={},poNotes={},poCat=0,poSub=0,poQ='',poPkg=null,pkgDraft={},pkgInst=0,pkgInstances={};
+let poItems={},poNotes={},poCat=0,poSub=0,poQ='',poPkg=null,pkgDraft={},pkgQty={}; // pkgQty stores quantity for each package
 let currentUser=null;
 
 /* ── UTILS ── */
@@ -918,8 +923,7 @@ function pkgSlotCount(pkgName,slot){
 }
 /* Check if all chooseable slots in the package are filled to capacity */
 function pkgDraftComplete(pkgName){
-  const baseName=getBasePkgName(pkgName);
-  const pkg=PACKAGES[baseName];if(!pkg)return false;
+  const pkg=PACKAGES[pkgName];if(!pkg)return false;
   for(const slot of pkg){
     if(slot.type==='choose'&&pkgSlotCount(pkgName,slot)<slot.qty)return false;
   }
@@ -927,43 +931,21 @@ function pkgDraftComplete(pkgName){
 }
 /* Enter a package tab — initialize draft with any existing committed items from this package */
 function pkgEnterTab(pkgName){
-  // Check if this package is already committed
-  const prefix=`[${pkgName}] `;
-  const alreadyExists=Object.keys(poItems).some(k=>k.startsWith(prefix));
-  
-  // If it exists, ask user if they want to add another instance
-  if(alreadyExists && !confirm(`You already have ${pkgName} in your order. Add another one?`)){
-    return; // User cancelled
-  }
-  
-  // If adding another instance, append instance number to package name
-  if(alreadyExists){
-    let instNum=2;
-    while(Object.keys(poItems).some(k=>k.startsWith(`[${pkgName} #${instNum}] `))){
-      instNum++;
-    }
-    poPkg=`${pkgName} #${instNum}`;
-  }else{
-    poPkg=pkgName;
-  }
+  poPkg=pkgName;
+  // Initialize quantity if not set
+  if(!pkgQty[pkgName])pkgQty[pkgName]=1;
   
   pkgDraft={};
-  // Pre-load any already-committed items from this specific instance
+  // Pre-load any already-committed items
   const myPrefix=`[${poPkg}] `;
   Object.entries(poItems).forEach(([k,v])=>{if(k.startsWith(myPrefix))pkgDraft[k]=v;});
   poRenderAll();
-}
-/* Get base package name without instance number */
-function getBasePkgName(pkgName){
-  // "Serayu 10 Pax #2" -> "Serayu 10 Pax"
-  return pkgName.replace(/ #\d+$/,'');
 }
 /* Render the package view into #pogrid */
 function poRPackage(){
   const grid=document.getElementById('pogrid');grid.innerHTML='';
   grid.className='pogrid pkggrid';
-  const baseName=getBasePkgName(poPkg);
-  const pkg=PACKAGES[baseName];if(!pkg)return;
+  const pkg=PACKAGES[poPkg];if(!pkg)return;
   pkg.forEach(slot=>{
     const slotDiv=document.createElement('div');
     slotDiv.className='pkgslot'+(slot.type==='fixed'?' fixed':'');
@@ -996,10 +978,17 @@ function poRPackage(){
   const missing=PACKAGES[poPkg].filter(s=>s.type==='choose'&&pkgSlotCount(poPkg,s)<s.qty);
   const missingText=missing.length?`${missing.length} slot${missing.length>1?'s':''} incomplete`:'Ready to confirm';
   const bar=document.createElement('div');bar.className='pkgbar';
-  bar.innerHTML=`<div class="pkgbar-status ${complete?'ok':'warn'}">${complete?'✓ ':'⚠ '}${missingText}</div><div class="pkgbar-btns">${alreadyCommitted?`<button class="pkgbar-btn pkgbar-remove" onclick="pkgRemoveCommitted('${poPkg}')">Remove from order</button>`:''}<button class="pkgbar-btn pkgbar-cancel" onclick="pkgCancelDraft()" ${draftHasItems?'':'disabled'}>Cancel</button><button class="pkgbar-btn pkgbar-confirm" onclick="pkgConfirm()" ${complete?'':'disabled'}>${alreadyCommitted?'Update':'Confirm'} package</button></div>`;
+  const qty=pkgQty[poPkg]||1;
+  bar.innerHTML=`<div class="pkgbar-qty"><span>Quantity:</span><button class="pkgqb" onclick="pkgChangeQty('${poPkg}',-1)" ${qty<=1?'disabled':''}>−</button><span class="pkgqn">${qty}</span><button class="pkgqb" onclick="pkgChangeQty('${poPkg}',1)" ${qty>=10?'disabled':''}>+</button></div><div class="pkgbar-status ${complete?'ok':'warn'}">${complete?'✓ ':'⚠ '}${missingText}</div><div class="pkgbar-btns">${alreadyCommitted?`<button class="pkgbar-btn pkgbar-remove" onclick="pkgRemoveCommitted('${poPkg}')">Remove from order</button>`:''}<button class="pkgbar-btn pkgbar-cancel" onclick="pkgCancelDraft()" ${draftHasItems?'':'disabled'}>Cancel</button><button class="pkgbar-btn pkgbar-confirm" onclick="pkgConfirm()" ${complete?'':'disabled'}>${alreadyCommitted?'Update':'Confirm'} package</button></div>`;
   grid.appendChild(bar);
 }
 /* Quantity changer — writes to draft, NOT to poItems. Hard caps at slot.qty */
+function pkgChangeQty(pkgName,delta){
+  const cur=pkgQty[pkgName]||1;
+  const newQty=Math.max(1,Math.min(10,cur+delta)); // Min 1, Max 10
+  pkgQty[pkgName]=newQty;
+  poRPackage(); // Re-render to update UI
+}
 function poChPkg(pkgName,slotName,option,cap,delta){
   const key=pkgKey(pkgName,slotName,option);
   const cur=pkgDraft[key]||0;
@@ -1014,21 +1003,25 @@ function poChPkg(pkgName,slotName,option,cap,delta){
 /* Confirm: commit draft to poItems. Fixed slots are also added now. */
 function pkgConfirm(){
   if(!pkgDraftComplete(poPkg)){showToast('Please fill all chooseable slots first','error');return;}
-  const baseName=getBasePkgName(poPkg);
-  const pkg=PACKAGES[baseName];if(!pkg)return;
+  const pkg=PACKAGES[poPkg];if(!pkg)return;
   const prefix=`[${poPkg}] `;
-  // Clear any previously committed items from THIS SPECIFIC instance (re-confirm replaces)
+  const qty=pkgQty[poPkg]||1;
+  
+  // Clear any previously committed items from this package
   Object.keys(poItems).forEach(k=>{if(k.startsWith(prefix)){delete poItems[k];delete poNotes[k];}});
-  // Add fixed items
+  
+  // Add fixed items (multiplied by quantity)
   pkg.forEach(slot=>{
     if(slot.type==='fixed'){
       const key=pkgKey(poPkg,slot.name);
-      poItems[key]=slot.qty;
+      poItems[key]=slot.qty*qty;
     }
   });
-  // Copy draft (chooseables) into poItems
-  Object.entries(pkgDraft).forEach(([k,v])=>{poItems[k]=v;});
-  showToast(poPkg+' added to pre-order');
+  
+  // Copy draft (chooseables) into poItems (multiplied by quantity)
+  Object.entries(pkgDraft).forEach(([k,v])=>{poItems[k]=v*qty;});
+  
+  showToast(poPkg+(qty>1?' (×'+qty+')':'')+' added to pre-order');
   poRSum();poRPackage();
 }
 /* Cancel draft — discard unsaved chooseable picks */
@@ -1393,16 +1386,25 @@ async function downloadDailyPDF(){
           doc.setTextColor(30,30,30);doc.setFontSize(8);
           y+=5;
         }
-        // PO items sub-row
+        // PO items sub-row - with per-item page break checking
         if(b.preOrder&&b.preOrder.length){
-          if(y>270){doc.addPage();y=m;}
-          doc.setFillColor(238,237,254);doc.rect(m+2,y,W-2*m-4,6*(b.preOrder.length),'F');
           doc.setFontSize(7);doc.setTextColor(83,74,183);
-          b.preOrder.forEach(item=>{
+          b.preOrder.forEach((item,idx)=>{
+            // Check page break before each item
+            if(y>270){doc.addPage();y=m;}
+            // Draw item background
+            doc.setFillColor(238,237,254);doc.rect(m+2,y,W-2*m-4,6,'F');
+            // Draw item text
             doc.text(`  • ${item.name} ×${item.qty}${item.itemNote?' — '+item.itemNote:''}`,m+6,y+4);
             y+=6;
           });
-          if(b.poNote){doc.text(`  📝 ${b.poNote.substring(0,70)}`,m+6,y+4);y+=6;}
+          // PO note
+          if(b.poNote){
+            if(y>270){doc.addPage();y=m;}
+            doc.setFillColor(238,237,254);doc.rect(m+2,y,W-2*m-4,6,'F');
+            doc.text(`  📝 ${b.poNote.substring(0,70)}`,m+6,y+4);
+            y+=6;
+          }
           doc.setTextColor(30,30,30);
         }
       });
