@@ -206,7 +206,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx)}
 .rbody{flex:1;min-width:0}
 .rname{font-size:13px;font-weight:500}
 .rmeta{font-size:11px;color:var(--tx2);margin-top:2px;line-height:1.5}
-.rflags{display:flex;gap:4px;margin-right:8px;flex-shrink:0;align-items:center}
+.rflags{display:flex;gap:4px;margin-right:4px;flex-shrink:0;align-items:center}
 .racts{display:flex;gap:4px;flex-shrink:0;align-items:center}
 .ibtn{width:28px;height:28px;border-radius:6px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
 .iok{background:#EAF3DE;color:#27500A}.iok:hover{background:#C0DD97}
@@ -342,12 +342,12 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx)}
 /* Package tabs and slots */
 .pkgbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#1a1a1a;color:#fff!important;border-radius:8px;padding:10px 14px;margin-top:10px;flex-wrap:wrap}
 .pkgbar *{color:#fff!important}
-.pkgbar-qty-top{display:flex;align-items:center;gap:10px;background:#2a2a2a;color:#fff;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px}
+.pkgbar-qty-top{display:flex;align-items:center;gap:10px;background:#fff;color:#000;border:1px solid #ddd;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px}
 .pkgbar-qty{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
 .pkgqb{background:#3a3a3a;border:none;color:#fff;width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:16px;font-weight:bold;display:flex;align-items:center;justify-content:center}
 .pkgqb:hover:not(:disabled){background:#4a4a4a}
 .pkgqb:disabled{opacity:.3;cursor:not-allowed}
-.pkgqn{min-width:20px;text-align:center;font-size:15px;font-weight:bold;color:#fbbf24!important}
+.pkgqn{min-width:20px;text-align:center;font-size:15px;font-weight:bold;color:#000!important}
 .pkgbar-status{font-size:12px;font-weight:600;flex:1;min-width:140px}
 .pkgbar-status.warn{color:#fbbf24!important}
 .pkgbar-status.ok{color:#6ee7b7!important}
@@ -1101,7 +1101,9 @@ function poRSum(){
   let total=0;let html='';
   // Render package groups first
   Object.entries(pkgGroups).forEach(([pkgName,items])=>{
-    html+=`<div class="posum-pkg"><div class="posum-pkg-hdr">🍽️ ${pkgName}</div>`;
+    const qty=pkgQty[pkgName]||1;
+    const qtyLabel=qty>1?` <span style="background:#666;color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600">qty: ${qty}</span>`:'';
+    html+=`<div class="posum-pkg"><div class="posum-pkg-hdr">🍽️ ${pkgName}${qtyLabel}</div>`;
     items.forEach(([label,qty,fullName])=>{
       const sn=fullName.replace(/'/g,"\\'");
       const note=poNotes[fullName]||'';
@@ -1479,7 +1481,9 @@ function startEdit(id){
   }
   
   document.getElementById('rname').value=b.name||'';document.getElementById('rphone').value=b.phone||'';document.getElementById('rdate').value=b.date;
-  buildTOpts(document.getElementById('rtime'),b.time);document.getElementById('rtime').value=b.time;
+  // For walk-in, set time to current time instead of booking time
+  const timeToUse=b.type==='walkin'?nowS():b.time;
+  buildTOpts(document.getElementById('rtime'),timeToUse);document.getElementById('rtime').value=timeToUse;
   document.getElementById('rpax').value=b.pax||'';document.getElementById('rstaff').value=b.staff||'';
   document.getElementById('rnotes').value=b.notes||'';
   document.getElementById('rdur').value=b.duration||150;
@@ -1518,6 +1522,8 @@ function updComboVisibility(tid,pax){
 function openReservation(preTid){
   editId=null;editType=null;rcombo=[];poReset();
   ['rname','rphone','rnotes'].forEach(id=>document.getElementById(id).value='');
+  // Show phone field for new reservations
+  document.getElementById('rphone-row').style.display='';
   // Default date to the currently-viewed floor date (reduces human error on future-date bookings)
   document.getElementById('rdate').value=afd();
   document.getElementById('rpax').value='';document.getElementById('rstaff').value='';
@@ -1722,10 +1728,11 @@ function renderList(){
         const cc=[isc?'iscb':'',isw?'iswk':'',hpo&&!isc?'ispo':''].filter(Boolean).join(' ');
         const dc=isc?'dc':isw?'dw':'dr',bc2=isw?'bw':isc?'bc':'br',bt=isw?'Walk-in':isc?'Combined':'Reserved';
         const ex=[];if(b.babyChairs>0)ex.push(b.babyChairs+' baby chair'+(b.babyChairs>1?'s':''));if(isc)ex.push('w/ '+b.combos.map(lbl).join(', '));if(b.staff)ex.push('by '+b.staff);if(b.notes)ex.push(b.notes);
-        const phoneHTML=b.phone?`<div style="font-size:10px;color:#666;margin-top:2px">Phone: ${b.phone}</div>`:'';
+        // Phone in metadata row after table
+        const phoneText=b.phone?` · Phone: ${b.phone}`:'';
         const flags=[];if(hpo)flags.push('<span class="bdg bp">PO</span>');if(isc)flags.push('<span class="bdg bc">COMBO</span>');
         const flagHTML=flags.length?`<div class="rflags">${flags.join(' ')}</div>`:'';
-        html+=`<div class="rlc ${cc}"><div class="rtcol"><div class="rtim">${b.time}</div><div class="rdot ${dc}"></div></div><div class="rbody"><div class="rname">${b.name||'Walk-in'} <span class="bdg ${bc2}">${bt}</span></div>${phoneHTML}<div class="rmeta">${lbl(b.tableId)}${b.pax?' · '+b.pax+' pax':''}${b.duration?' · '+durLbl(b.duration):''}${ex.length?' · '+ex.join(' · '):''}</div>${hpo?`<div style="font-size:10px;color:#1a1a1a;margin-top:3px;padding:2px 7px;border-radius:10px;background:#f0f0ef;border:0.5px solid #4b5563;display:inline-block">PO: ${b.preOrder.map(i=>i.name+' ×'+i.qty+(i.itemNote?' ('+i.itemNote+')':'')).join(', ')}</div>`:''}</div>${flagHTML}<div class="racts"><button class="ibtn iok" onclick="showCF('done',${b.id})">✓</button><button class="ibtn ied" onclick="startEdit(${b.id})">✎</button><button class="ibtn idl" onclick="showCF('delete',${b.id})">✕</button></div></div>`;
+        html+=`<div class="rlc ${cc}"><div class="rtcol"><div class="rtim">${b.time}</div><div class="rdot ${dc}"></div></div><div class="rbody"><div class="rname">${b.name||'Walk-in'} <span class="bdg ${bc2}">${bt}</span></div><div class="rmeta">${lbl(b.tableId)}${phoneText}${b.pax?' · '+b.pax+' pax':''}${b.duration?' · '+durLbl(b.duration):''}${ex.length?' · '+ex.join(' · '):''}</div>${hpo?`<div style="font-size:10px;color:#1a1a1a;margin-top:3px;padding:2px 7px;border-radius:10px;background:#f0f0ef;border:0.5px solid #4b5563;display:inline-block">PO: ${b.preOrder.map(i=>i.name+' ×'+i.qty+(i.itemNote?' ('+i.itemNote+')':'')).join(', ')}</div>`:''}</div>${flagHTML}<div class="racts"><button class="ibtn iok" onclick="showCF('done',${b.id})">✓</button><button class="ibtn ied" onclick="startEdit(${b.id})">✎</button><button class="ibtn idl" onclick="showCF('delete',${b.id})">✕</button></div></div>`;
       });html+='</div>';
     });html+='</div>';
   });
