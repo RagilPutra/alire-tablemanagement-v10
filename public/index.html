@@ -1358,17 +1358,20 @@ async function downloadDailyPDF(){
         // Table: just primary on main row
         if(b.combos&&b.combos.length){doc.setTextColor(201,100,0);}
         doc.text(lbl(b.tableId)+(b.combos&&b.combos.length?' +':''),m+22,y+4.5);doc.setTextColor(30,30,30);
-        doc.text((b.name||'Walk-in').substring(0,30),m+42,y+4.5);
+        // Guest name and phone on same line
+        const guestText=(b.name||'Walk-in').substring(0,20);
+        const phoneText=b.phone?' ('+b.phone.substring(0,12)+')':'';
+        doc.text(guestText+phoneText,m+42,y+4.5);
         doc.text(String(b.pax||'-'),m+95,y+4.5);
         doc.text(b.duration?durLbl(b.duration):'-',m+108,y+4.5);
         const noteStr=[b.notes||'',b.babyChairs>0?b.babyChairs+'x baby chair':''].filter(Boolean).join(', ');
         doc.text(noteStr.substring(0,28)+(noteStr.length>28?'...':''),m+125,y+4.5);
-        // Flags - adjusted to stay within margins
+        // Flags - positioned more to the left to avoid cutoff
         const flags=[];
         if(b.preOrder&&b.preOrder.length)flags.push('PO');
         if(b.combos&&b.combos.length)flags.push('COMBO');
         if(flags.length){
-          let fx=W-m-24; // Start from right margin minus flag width
+          let fx=W-m-30; // More margin from right edge
           flags.forEach(f=>{
             if(f==='PO'){doc.setFillColor(83,74,183);doc.setTextColor(255,255,255);}else{doc.setFillColor(201,100,0);doc.setTextColor(255,255,255);}
             doc.roundedRect(fx,y,10,6,1,1,'F');doc.setFontSize(6);doc.text(f,fx+5,y+4.2,{align:'center'});fx-=12;
@@ -1393,14 +1396,6 @@ async function downloadDailyPDF(){
           doc.setFontSize(7);doc.setTextColor(80,80,80);
           noteLines.forEach(ln=>{doc.text(ln,m+6,y+4);y+=5;});
           y+=1;doc.setTextColor(30,30,30);doc.setFontSize(8);
-        }
-        // Phone sub-row if present
-        if(b.phone){
-          if(y>270){doc.addPage();y=m;}
-          doc.setFontSize(7);doc.setTextColor(100,100,100);
-          doc.text('Phone: '+b.phone,m+6,y+4);
-          doc.setTextColor(30,30,30);doc.setFontSize(8);
-          y+=5;
         }
         // PO items sub-row - with per-item page break checking
         if(b.preOrder&&b.preOrder.length){
@@ -1480,10 +1475,18 @@ function startEdit(id){
     phoneRow.style.display='';
   }
   
-  document.getElementById('rname').value=b.name||'';document.getElementById('rphone').value=b.phone||'';document.getElementById('rdate').value=b.date;
-  // For walk-in, set time to current time instead of booking time
-  const timeToUse=b.type==='walkin'?nowS():b.time;
-  buildTOpts(document.getElementById('rtime'),timeToUse);document.getElementById('rtime').value=timeToUse;
+  document.getElementById('rname').value=b.name||'';document.getElementById('rphone').value=b.phone||'';
+  // For walk-in, set date and time to current (they're happening now)
+  if(b.type==='walkin'){
+    document.getElementById('rdate').value=today();
+    const currentTime=nowS();
+    buildTOpts(document.getElementById('rtime'),currentTime);
+    document.getElementById('rtime').value=currentTime;
+  }else{
+    document.getElementById('rdate').value=b.date;
+    buildTOpts(document.getElementById('rtime'),b.time);
+    document.getElementById('rtime').value=b.time;
+  }
   document.getElementById('rpax').value=b.pax||'';document.getElementById('rstaff').value=b.staff||'';
   document.getElementById('rnotes').value=b.notes||'';
   document.getElementById('rdur').value=b.duration||150;
@@ -1730,9 +1733,10 @@ function renderList(){
         const ex=[];if(b.babyChairs>0)ex.push(b.babyChairs+' baby chair'+(b.babyChairs>1?'s':''));if(isc)ex.push('w/ '+b.combos.map(lbl).join(', '));if(b.staff)ex.push('by '+b.staff);if(b.notes)ex.push(b.notes);
         // Phone in metadata row after table
         const phoneText=b.phone?` · Phone: ${b.phone}`:'';
+        // Flags inline
         const flags=[];if(hpo)flags.push('<span class="bdg bp">PO</span>');if(isc)flags.push('<span class="bdg bc">COMBO</span>');
-        const flagHTML=flags.length?`<div class="rflags">${flags.join(' ')}</div>`:'';
-        html+=`<div class="rlc ${cc}"><div class="rtcol"><div class="rtim">${b.time}</div><div class="rdot ${dc}"></div></div><div class="rbody"><div class="rname">${b.name||'Walk-in'} <span class="bdg ${bc2}">${bt}</span></div><div class="rmeta">${lbl(b.tableId)}${phoneText}${b.pax?' · '+b.pax+' pax':''}${b.duration?' · '+durLbl(b.duration):''}${ex.length?' · '+ex.join(' · '):''}</div>${hpo?`<div style="font-size:10px;color:#1a1a1a;margin-top:3px;padding:2px 7px;border-radius:10px;background:#f0f0ef;border:0.5px solid #4b5563;display:inline-block">PO: ${b.preOrder.map(i=>i.name+' ×'+i.qty+(i.itemNote?' ('+i.itemNote+')':'')).join(', ')}</div>`:''}</div>${flagHTML}<div class="racts"><button class="ibtn iok" onclick="showCF('done',${b.id})">✓</button><button class="ibtn ied" onclick="startEdit(${b.id})">✎</button><button class="ibtn idl" onclick="showCF('delete',${b.id})">✕</button></div></div>`;
+        const flagText=flags.length?' · '+flags.join(' '):'';
+        html+=`<div class="rlc ${cc}"><div class="rtcol"><div class="rtim">${b.time}</div><div class="rdot ${dc}"></div></div><div class="rbody"><div class="rname">${b.name||'Walk-in'} <span class="bdg ${bc2}">${bt}</span></div><div class="rmeta">${lbl(b.tableId)}${phoneText}${b.pax?' · '+b.pax+' pax':''}${b.duration?' · '+durLbl(b.duration):''}${ex.length?' · '+ex.join(' · '):''}${flagText}</div>${hpo?`<div style="font-size:10px;color:#1a1a1a;margin-top:3px;padding:2px 7px;border-radius:10px;background:#f0f0ef;border:0.5px solid #4b5563;display:inline-block">PO: ${b.preOrder.map(i=>i.name+' ×'+i.qty+(i.itemNote?' ('+i.itemNote+')':'')).join(', ')}</div>`:''}</div><div class="racts"><button class="ibtn iok" onclick="showCF('done',${b.id})">✓</button><button class="ibtn ied" onclick="startEdit(${b.id})">✎</button><button class="ibtn idl" onclick="showCF('delete',${b.id})">✕</button></div></div>`;
       });html+='</div>';
     });html+='</div>';
   });
