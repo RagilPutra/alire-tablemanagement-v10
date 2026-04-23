@@ -854,7 +854,27 @@ function initInputs(){
   document.getElementById('lpick').value=t;document.getElementById('lpick').min=t;document.getElementById('lpick').max=mx;
   ldate=t;updLDisp();
 }
-function buildTOpts(sel,def){sel.innerHTML='';for(let h=8;h<=22;h++){(h===22?[0]:[0,30]).forEach(m=>{const v=fmt30(h,m);const o=document.createElement('option');o.value=v;o.textContent=v;if(def&&v===def)o.selected=true;sel.appendChild(o);});}}
+function buildTOpts(sel,def){
+  sel.innerHTML='';
+  const times=[];
+  for(let h=8;h<=22;h++){
+    (h===22?[0]:[0,30]).forEach(m=>{
+      times.push(fmt30(h,m));
+    });
+  }
+  // If def time is not in the list, add it
+  if(def&&!times.includes(def)){
+    times.push(def);
+    times.sort();
+  }
+  times.forEach(v=>{
+    const o=document.createElement('option');
+    o.value=v;
+    o.textContent=v;
+    if(def&&v===def)o.selected=true;
+    sel.appendChild(o);
+  });
+}
 
 /* ── SUMMARY ── */
 function sfilt(b){const t=b.time||'00:00';return sess==='lunch'?(t>='08:00'&&t<'15:00'):(t>='15:00'&&t<='22:00');}
@@ -1366,15 +1386,16 @@ async function downloadDailyPDF(){
         doc.text(b.duration?durLbl(b.duration):'-',m+108,y+4.5);
         const noteStr=[b.notes||'',b.babyChairs>0?b.babyChairs+'x baby chair':''].filter(Boolean).join(', ');
         doc.text(noteStr.substring(0,28)+(noteStr.length>28?'...':''),m+125,y+4.5);
-        // Flags - positioned more to the left to avoid cutoff
+        // Flags - positioned to stay within cream box
         const flags=[];
         if(b.preOrder&&b.preOrder.length)flags.push('PO');
         if(b.combos&&b.combos.length)flags.push('COMBO');
         if(flags.length){
-          let fx=W-m-30; // More margin from right edge
+          let fx=W-m-32; // Start from right with safe margin (210-18-32=160mm)
+          flags.reverse(); // Reverse to draw from right to left
           flags.forEach(f=>{
             if(f==='PO'){doc.setFillColor(83,74,183);doc.setTextColor(255,255,255);}else{doc.setFillColor(201,100,0);doc.setTextColor(255,255,255);}
-            doc.roundedRect(fx,y,10,6,1,1,'F');doc.setFontSize(6);doc.text(f,fx+5,y+4.2,{align:'center'});fx-=12;
+            doc.roundedRect(fx,y+1,10,5,1,1,'F');doc.setFontSize(6);doc.text(f,fx+5,y+4.2,{align:'center'});fx-=12;
           });
           doc.setTextColor(30,30,30);doc.setFontSize(8);
         }
@@ -1494,7 +1515,10 @@ function startEdit(id){
   document.getElementById('rfhint').innerHTML='';document.getElementById('rconflict').classList.remove('show');
   document.getElementById('rcchips').innerHTML='';document.getElementById('rrecs').innerHTML='';
   const btn=document.getElementById('rsubmit');btn.textContent='Save changes';btn.disabled=false;btn.style.opacity='1';
-  buildTSel('rtbl',b.date,b.time,b.tableId);document.getElementById('rtbl').value=b.tableId;
+  // Use current date/time for walk-ins in table selector
+  const dateForTable=b.type==='walkin'?today():b.date;
+  const timeForTable=b.type==='walkin'?nowS():b.time;
+  buildTSel('rtbl',dateForTable,timeForTable,b.tableId);document.getElementById('rtbl').value=b.tableId;
   const t=getT(b.tableId);
   // combo: only show if pax exceeds table cap
   updComboVisibility(b.tableId,b.pax||0);
