@@ -1386,12 +1386,12 @@ async function downloadDailyPDF(){
         doc.text(b.duration?durLbl(b.duration):'-',m+108,y+4.5);
         const noteStr=[b.notes||'',b.babyChairs>0?b.babyChairs+'x baby chair':''].filter(Boolean).join(', ');
         doc.text(noteStr.substring(0,28)+(noteStr.length>28?'...':''),m+125,y+4.5);
-        // Flags - positioned to stay within cream box
+        // Flags - positioned well within visible area
         const flags=[];
         if(b.preOrder&&b.preOrder.length)flags.push('PO');
         if(b.combos&&b.combos.length)flags.push('COMBO');
         if(flags.length){
-          let fx=W-m-32; // Start from right with safe margin (210-18-32=160mm)
+          let fx=W-m-48; // Move further left (210-18-48=144mm)
           flags.reverse(); // Reverse to draw from right to left
           flags.forEach(f=>{
             if(f==='PO'){doc.setFillColor(83,74,183);doc.setTextColor(255,255,255);}else{doc.setFillColor(201,100,0);doc.setTextColor(255,255,255);}
