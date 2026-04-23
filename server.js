@@ -99,7 +99,12 @@ function validateBooking(data) {
   if (data.name && data.name.length > 30) {
     errors.push('Name must be 30 characters or less');
   }
-  // Phone is optional - removed validation per user request
+  // Phone required ONLY for reservations, optional for walk-in and waiting list
+  if (data.type === 'reservation') {
+    if (!data.phone || typeof data.phone !== 'string' || data.phone.trim().length === 0) {
+      errors.push('Phone number is required for reservations');
+    }
+  }
   if (!data.date || !/^\d{4}-\d{2}-\d{2}$/.test(data.date)) {
     errors.push('Valid date is required (YYYY-MM-DD)');
   }

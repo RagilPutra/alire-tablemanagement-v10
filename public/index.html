@@ -206,6 +206,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx)}
 .rbody{flex:1;min-width:0}
 .rname{font-size:13px;font-weight:500}
 .rmeta{font-size:11px;color:var(--tx2);margin-top:2px;line-height:1.5}
+.rflags{display:flex;gap:4px;margin-right:8px;flex-shrink:0;align-items:center}
 .racts{display:flex;gap:4px;flex-shrink:0;align-items:center}
 .ibtn{width:28px;height:28px;border-radius:6px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
 .iok{background:#EAF3DE;color:#27500A}.iok:hover{background:#C0DD97}
@@ -341,6 +342,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx)}
 /* Package tabs and slots */
 .pkgbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#1a1a1a;color:#fff!important;border-radius:8px;padding:10px 14px;margin-top:10px;flex-wrap:wrap}
 .pkgbar *{color:#fff!important}
+.pkgbar-qty-top{display:flex;align-items:center;gap:10px;background:#2a2a2a;color:#fff;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px}
 .pkgbar-qty{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600}
 .pkgqb{background:#3a3a3a;border:none;color:#fff;width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:16px;font-weight:bold;display:flex;align-items:center;justify-content:center}
 .pkgqb:hover:not(:disabled){background:#4a4a4a}
@@ -597,7 +599,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--tx)}
     <div class="mhdr"><div class="mtit" id="res-tit">Add reservation</div><button class="mcls" onclick="closeOv('ov-res')">✕</button></div>
     <div class="two-col">
       <div class="fl"><label>Guest name <span style="color:#E24B4A">*</span></label><input id="rname" maxlength="30" placeholder="e.g. Santos family (max 30 chars)"/></div>
-      <div class="fl"><label>Phone number <span style="color:#E24B4A">*</span></label><input id="rphone" type="tel" maxlength="20" placeholder="e.g. 08123456789"/></div>
+      <div class="fl" id="rphone-row"><label>Phone number <span style="color:#E24B4A">*</span></label><input id="rphone" type="tel" maxlength="20" placeholder="e.g. 08123456789"/></div>
     </div>
     <div class="two-col">
       <div class="fl"><label>Date</label><input type="date" id="rdate" onchange="onRC()"/></div>
@@ -761,7 +763,7 @@ const DUR_OPTS=[30,60,90,120,150,180,210,240,270,300];
 const DUR_LBL={30:'30 min',60:'1 hr',90:'1.5 hr',120:'2 hr',150:'2.5 hr',180:'3 hr',210:'3.5 hr',240:'4 hr',270:'4.5 hr',300:'5 hr'};
 
 /* ── STATE ── */
-let bookings=[],activeTbl=null,rcombo=[],wicombo=[],editId=null,cfAction=null;
+let bookings=[],activeTbl=null,rcombo=[],wicombo=[],editId=null,editType=null,cfAction=null;
 let fdate='',ldate='',witime='',view='floor',sess='lunch';
 let wlist=[];
 let poItems={},poNotes={},poCat=0,poSub=0,poQ='',poPkg=null,pkgDraft={},pkgQty={}; // pkgQty stores quantity for each package
@@ -924,8 +926,10 @@ function pkgSlotCount(pkgName,slot){
 /* Check if all chooseable slots in the package are filled to capacity */
 function pkgDraftComplete(pkgName){
   const pkg=PACKAGES[pkgName];if(!pkg)return false;
+  const qty=pkgQty[pkgName]||1;
   for(const slot of pkg){
-    if(slot.type==='choose'&&pkgSlotCount(pkgName,slot)<slot.qty)return false;
+    const requiredQty=slot.qty*qty; // Multiply by package quantity
+    if(slot.type==='choose'&&pkgSlotCount(pkgName,slot)<requiredQty)return false;
   }
   return true;
 }
@@ -946,23 +950,34 @@ function poRPackage(){
   const grid=document.getElementById('pogrid');grid.innerHTML='';
   grid.className='pogrid pkggrid';
   const pkg=PACKAGES[poPkg];if(!pkg)return;
+  
+  // Add quantity controls at the TOP
+  const qty=pkgQty[poPkg]||1;
+  const qtyBar=document.createElement('div');
+  qtyBar.className='pkgbar-qty-top';
+  qtyBar.innerHTML=`<span style="font-weight:600;font-size:14px">Package Quantity:</span><button class="pkgqb" onclick="pkgChangeQty('${poPkg}',-1)" ${qty<=1?'disabled':''}>−</button><span class="pkgqn">${qty}</span><button class="pkgqb" onclick="pkgChangeQty('${poPkg}',1)" ${qty>=10?'disabled':''}>+</button><span style="color:#999;font-size:12px;margin-left:12px">(All items ×${qty})</span>`;
+  grid.appendChild(qtyBar);
+  
   pkg.forEach(slot=>{
     const slotDiv=document.createElement('div');
     slotDiv.className='pkgslot'+(slot.type==='fixed'?' fixed':'');
+    const qty=pkgQty[poPkg]||1;
+    const slotQty=slot.qty*qty; // Multiply by package quantity
+    
     if(slot.type==='fixed'){
-      // Fixed: shown as read-only preview. Will be committed when admin clicks Confirm.
-      slotDiv.innerHTML=`<div class="pkgslot-hdr"><span class="pkgslot-name">${slot.name}</span><span class="pkgslot-qty">×${slot.qty}</span><span class="pkgslot-tag">Fixed</span></div>`;
+      // Fixed: shown as read-only preview with multiplied quantity
+      slotDiv.innerHTML=`<div class="pkgslot-hdr"><span class="pkgslot-name">${slot.name}</span><span class="pkgslot-qty">×${slotQty}</span><span class="pkgslot-tag">Fixed</span></div>`;
     } else {
       const chosen=pkgSlotCount(poPkg,slot);
-      const atCap=chosen>=slot.qty;
-      slotDiv.innerHTML=`<div class="pkgslot-hdr"><span class="pkgslot-name">${slot.name}</span><span class="pkgslot-qty ${atCap?'full':''}">${chosen} / ${slot.qty}</span><span class="pkgslot-tag choose">Choose</span></div>`;
+      const atCap=chosen>=slotQty; // Compare to multiplied cap
+      slotDiv.innerHTML=`<div class="pkgslot-hdr"><span class="pkgslot-name">${slot.name}</span><span class="pkgslot-qty ${atCap?'full':''}">${chosen} / ${slotQty}</span><span class="pkgslot-tag choose">Choose</span></div>`;
       const opts=document.createElement('div');opts.className='pkgopts';
       slot.options.forEach(opt=>{
         const key=pkgKey(poPkg,slot.name,opt);
         const q=pkgDraft[key]||0;
         const row=document.createElement('div');row.className='pkgopt'+(q>0?' has':'');
         const safeOpt=opt.replace(/'/g,"\\'").replace(/"/g,'&quot;');
-        row.innerHTML=`<span class="pkgopt-name">${opt}</span><div class="poitct"><button class="poqb" onclick="poChPkg('${poPkg}','${slot.name.replace(/'/g,"\\'")}','${safeOpt}',${slot.qty},-1)">−</button><span class="poqn">${q}</span><button class="poqb" onclick="poChPkg('${poPkg}','${slot.name.replace(/'/g,"\\'")}','${safeOpt}',${slot.qty},1)" ${atCap?'disabled':''}>+</button></div>`;
+        row.innerHTML=`<span class="pkgopt-name">${opt}</span><div class="poitct"><button class="poqb" onclick="poChPkg('${poPkg}','${slot.name.replace(/'/g,"\\'")}','${safeOpt}',${slotQty},-1)">−</button><span class="poqn">${q}</span><button class="poqb" onclick="poChPkg('${poPkg}','${slot.name.replace(/'/g,"\\'")}','${safeOpt}',${slotQty},1)" ${atCap?'disabled':''}>+</button></div>`;
         opts.appendChild(row);
       });
       slotDiv.appendChild(opts);
@@ -978,8 +993,7 @@ function poRPackage(){
   const missing=PACKAGES[poPkg].filter(s=>s.type==='choose'&&pkgSlotCount(poPkg,s)<s.qty);
   const missingText=missing.length?`${missing.length} slot${missing.length>1?'s':''} incomplete`:'Ready to confirm';
   const bar=document.createElement('div');bar.className='pkgbar';
-  const qty=pkgQty[poPkg]||1;
-  bar.innerHTML=`<div class="pkgbar-qty"><span>Quantity:</span><button class="pkgqb" onclick="pkgChangeQty('${poPkg}',-1)" ${qty<=1?'disabled':''}>−</button><span class="pkgqn">${qty}</span><button class="pkgqb" onclick="pkgChangeQty('${poPkg}',1)" ${qty>=10?'disabled':''}>+</button></div><div class="pkgbar-status ${complete?'ok':'warn'}">${complete?'✓ ':'⚠ '}${missingText}</div><div class="pkgbar-btns">${alreadyCommitted?`<button class="pkgbar-btn pkgbar-remove" onclick="pkgRemoveCommitted('${poPkg}')">Remove from order</button>`:''}<button class="pkgbar-btn pkgbar-cancel" onclick="pkgCancelDraft()" ${draftHasItems?'':'disabled'}>Cancel</button><button class="pkgbar-btn pkgbar-confirm" onclick="pkgConfirm()" ${complete?'':'disabled'}>${alreadyCommitted?'Update':'Confirm'} package</button></div>`;
+  bar.innerHTML=`<div class="pkgbar-status ${complete?'ok':'warn'}">${complete?'✓ ':'⚠ '}${missingText}</div><div class="pkgbar-btns">${alreadyCommitted?`<button class="pkgbar-btn pkgbar-remove" onclick="pkgRemoveCommitted('${poPkg}')">Remove from order</button>`:''}<button class="pkgbar-btn pkgbar-cancel" onclick="pkgCancelDraft()" ${draftHasItems?'':'disabled'}>Cancel</button><button class="pkgbar-btn pkgbar-confirm" onclick="pkgConfirm()" ${complete?'':'disabled'}>${alreadyCommitted?'Update':'Confirm'} package</button></div>`;
   grid.appendChild(bar);
 }
 /* Quantity changer — writes to draft, NOT to poItems. Hard caps at slot.qty */
@@ -1446,7 +1460,7 @@ async function runCF(){
 
 /* ── EDIT ── */
 function startEdit(id){
-  const b=bookings.find(x=>x.id===id);if(!b)return;editId=id;rcombo=[...(b.combos||[]).map(String)];
+  const b=bookings.find(x=>x.id===id);if(!b)return;editId=id;editType=b.type;rcombo=[...(b.combos||[]).map(String)];
   closeOv('ov-ti');closeOv('ov-cf');
   // Set title based on booking type
   const titles = {
@@ -1455,6 +1469,15 @@ function startEdit(id){
     'waiting': 'Edit waiting list entry'
   };
   document.getElementById('res-tit').textContent=titles[b.type]||'Edit booking';
+  
+  // Hide phone field for walk-in and waiting list
+  const phoneRow=document.getElementById('rphone-row');
+  if(b.type==='walkin'||b.type==='waiting'){
+    phoneRow.style.display='none';
+  }else{
+    phoneRow.style.display='';
+  }
+  
   document.getElementById('rname').value=b.name||'';document.getElementById('rphone').value=b.phone||'';document.getElementById('rdate').value=b.date;
   buildTOpts(document.getElementById('rtime'),b.time);document.getElementById('rtime').value=b.time;
   document.getElementById('rpax').value=b.pax||'';document.getElementById('rstaff').value=b.staff||'';
@@ -1493,7 +1516,7 @@ function updComboVisibility(tid,pax){
 
 /* ── RES MODAL ── */
 function openReservation(preTid){
-  editId=null;rcombo=[];poReset();
+  editId=null;editType=null;rcombo=[];poReset();
   ['rname','rphone','rnotes'].forEach(id=>document.getElementById(id).value='');
   // Default date to the currently-viewed floor date (reduces human error on future-date bookings)
   document.getElementById('rdate').value=afd();
@@ -1540,16 +1563,22 @@ async function submitRes(){
   const duration=parseInt(document.getElementById('rdur').value)||150;
   const bc=document.getElementById('rbaby').checked,bn=bc?parseInt(document.getElementById('bqtynum').value)||1:0;
   if(!name){showToast('Please enter guest name','error');return;}
-  // Phone is optional - validation removed per user request
+  
+  // Determine booking type: use editType if editing, otherwise 'reservation' for new bookings
+  const bookingType=editId?editType:'reservation';
+  
+  // Phone required ONLY for reservations
+  if(bookingType==='reservation'&&!phone){showToast('Phone number is required for reservations','error');return;}
+  
   if(!pax){showToast('Please enter party size','error');return;}
   if(!tableId){showToast('Please select a table','error');return;}
   const{items:preOrder,note:poNote}=poGet();
-  const body={tableId,type:'reservation',name,phone,date,time,pax,duration,staff,notes,babyChairs:bn,combos:rcombo,preOrder,poNote};
+  const body={tableId,type:bookingType,name,phone,date,time,pax,duration,staff,notes,babyChairs:bn,combos:rcombo,preOrder,poNote};
   try{
     const btn=document.getElementById('rsubmit');btn.disabled=true;btn.textContent='Saving...';
-    if(editId){const u=await api(`/api/bookings/${editId}`,{method:'PUT',body:JSON.stringify(body)});bookings=bookings.map(b=>b.id===editId?u:b);showToast('Reservation updated for '+name);}
+    if(editId){const u=await api(`/api/bookings/${editId}`,{method:'PUT',body:JSON.stringify(body)});bookings=bookings.map(b=>b.id===editId?u:b);showToast('Booking updated for '+name);}
     else{const cr=await api('/api/bookings',{method:'POST',body:JSON.stringify(body)});bookings.push(cr);showToast('Reserved '+lbl(tableId)+' for '+name+(preOrder.length?' + PO':''));}
-    editId=null;closeOv('ov-res');renderFloor();renderExFloor();if(view==='list')renderList();
+    editId=null;editType=null;closeOv('ov-res');renderFloor();renderExFloor();if(view==='list')renderList();
   }catch(e){showToast(e.message,'error');const btn=document.getElementById('rsubmit');btn.disabled=false;btn.textContent=editId?'Save changes':'Confirm reservation';}
 }
 
@@ -1693,7 +1722,10 @@ function renderList(){
         const cc=[isc?'iscb':'',isw?'iswk':'',hpo&&!isc?'ispo':''].filter(Boolean).join(' ');
         const dc=isc?'dc':isw?'dw':'dr',bc2=isw?'bw':isc?'bc':'br',bt=isw?'Walk-in':isc?'Combined':'Reserved';
         const ex=[];if(b.babyChairs>0)ex.push(b.babyChairs+' baby chair'+(b.babyChairs>1?'s':''));if(isc)ex.push('w/ '+b.combos.map(lbl).join(', '));if(b.staff)ex.push('by '+b.staff);if(b.notes)ex.push(b.notes);
-        html+=`<div class="rlc ${cc}"><div class="rtcol"><div class="rtim">${b.time}</div><div class="rdot ${dc}"></div></div><div class="rbody"><div class="rname">${b.name||'Walk-in'} <span class="bdg ${bc2}">${bt}</span>${hpo?` <span class="bdg bp">PO</span>`:''}</div><div class="rmeta">${lbl(b.tableId)}${b.pax?' · '+b.pax+' pax':''}${b.duration?' · '+durLbl(b.duration):''}${ex.length?' · '+ex.join(' · '):''}</div>${hpo?`<div style="font-size:10px;color:#1a1a1a;margin-top:3px;padding:2px 7px;border-radius:10px;background:#f0f0ef;border:0.5px solid #4b5563;display:inline-block">PO: ${b.preOrder.map(i=>i.name+' ×'+i.qty+(i.itemNote?' ('+i.itemNote+')':'')).join(', ')}</div>`:''}</div><div class="racts"><button class="ibtn iok" onclick="showCF('done',${b.id})">✓</button><button class="ibtn ied" onclick="startEdit(${b.id})">✎</button><button class="ibtn idl" onclick="showCF('delete',${b.id})">✕</button></div></div>`;
+        const phoneHTML=b.phone?`<div style="font-size:10px;color:#666;margin-top:2px">Phone: ${b.phone}</div>`:'';
+        const flags=[];if(hpo)flags.push('<span class="bdg bp">PO</span>');if(isc)flags.push('<span class="bdg bc">COMBO</span>');
+        const flagHTML=flags.length?`<div class="rflags">${flags.join(' ')}</div>`:'';
+        html+=`<div class="rlc ${cc}"><div class="rtcol"><div class="rtim">${b.time}</div><div class="rdot ${dc}"></div></div><div class="rbody"><div class="rname">${b.name||'Walk-in'} <span class="bdg ${bc2}">${bt}</span></div>${phoneHTML}<div class="rmeta">${lbl(b.tableId)}${b.pax?' · '+b.pax+' pax':''}${b.duration?' · '+durLbl(b.duration):''}${ex.length?' · '+ex.join(' · '):''}</div>${hpo?`<div style="font-size:10px;color:#1a1a1a;margin-top:3px;padding:2px 7px;border-radius:10px;background:#f0f0ef;border:0.5px solid #4b5563;display:inline-block">PO: ${b.preOrder.map(i=>i.name+' ×'+i.qty+(i.itemNote?' ('+i.itemNote+')':'')).join(', ')}</div>`:''}</div>${flagHTML}<div class="racts"><button class="ibtn iok" onclick="showCF('done',${b.id})">✓</button><button class="ibtn ied" onclick="startEdit(${b.id})">✎</button><button class="ibtn idl" onclick="showCF('delete',${b.id})">✕</button></div></div>`;
       });html+='</div>';
     });html+='</div>';
   });
