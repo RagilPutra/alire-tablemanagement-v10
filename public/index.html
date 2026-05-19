@@ -820,6 +820,12 @@ const nowS=()=>{const n=new Date();return p2(n.getHours())+':'+p2(n.getMinutes()
 /* Calculate elapsed time for a booking */
 const elapsedTime=(booking)=>{
   if(!booking||!booking.time)return'';
+  
+  // Check if booking date matches today's date
+  const today=new Date();
+  const todayStr=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+  if(booking.date!==todayStr)return''; // Not today, don't show elapsed time
+  
   const now=new Date();
   const[bh,bm]=booking.time.split(':').map(Number);
   const bookingTime=new Date();bookingTime.setHours(bh,bm,0,0);
